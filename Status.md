@@ -2,7 +2,7 @@
 
 ## Stand
 
-Datum: 2026-05-04
+Datum: 2026-05-06
 
 Der Single-File-Prototyp wurde als Grundlage uebernommen und in eine erste Azure-Static-Web-App-Struktur ueberfuehrt. Die App entwickelt sich nun vom reinen Monitor in Richtung Lizenzmanagement.
 
@@ -24,9 +24,13 @@ Der Single-File-Prototyp wurde als Grundlage uebernommen und in eine erste Azure
 - Persistenzstrategie fuer eigene Pakete abgestimmt: lokal `localStorage`, spaeter Azure Functions plus Azure Storage.
 - `docs/PersistenceStrategy.md` mit Entscheidung, Datenmodell, API-Zielbild und Migrationspfad ergaenzt.
 - Einstellungen um Pflege eigener Pakete erweitert.
-- Eigene Pakete koennen mit Name, SKU, Gesamtbestand, Verbrauch, Warnschwellwert und Blockierungsstatus hinzugefuegt werden.
+- Eigene Pakete koennen mit Name, SKU, Gesamtbestand, Verbrauch, Warnschwellwert und Blockierungsstatus hinzugefuegt und bearbeitet werden.
 - Eigene Pakete werden lokal im Key `licenseMonitor.customPackages.v1` gespeichert und im Dashboard sowie in den Schwellwerten angezeigt.
 - Eigene Pakete koennen wieder geloescht werden; zugehoerige Schwellwerte werden dabei entfernt.
+- Dashboard zeigt Trends, freie Kapazitaet und sortiert nach Auslastung.
+- Zuweisungshistorie bietet Suche, Datumsspanne, Statusfilter und Pagination.
+- Detailmodal zeigt zusatzlich die letzten Vorgaenge zum gewaehlten Lizenzpaket.
+- System-Logs scrollen bei Live-Betrieb automatisch nach unten.
 - Syntaxpruefung erfolgreich: `node --check src/app.js`.
 - Lokaler Static-Server laeuft fuer die aktuelle Pruefung unter `http://127.0.0.1:5173/`.
 
@@ -43,6 +47,7 @@ Der Single-File-Prototyp wurde als Grundlage uebernommen und in eine erste Azure
 ## Naechste Schritte
 
 - App im Browser pruefen.
+- API-Vertrag um Update/Delete fuer eigene Pakete und Settings-Endpunkte finalisieren.
 - Azure-Functions-API fuer Paket-CRUD und Settings anlegen.
 - Azure Storage Tabelle oder Blob fuer eigene Pakete und Settings provisionieren.
 - Git-Repository initialisieren oder Remote verbinden.

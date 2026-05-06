@@ -2,7 +2,7 @@
 
 ## Ziel
 
-Aus dem bestehenden Single-File-Prototyp `MVPindex.html` entsteht eine lauffaehige Azure Static Web App fuer Lizenzmanagement und Monitoring. Das Frontend und alle vorhandenen MVP-Funktionen werden erhalten und schrittweise in eine produktionsfaehige Struktur ueberfuehrt.
+Aus dem bestehenden Single-File-Prototyp `MVPindex.html` ist eine lauffaehige Azure Static Web App fuer Lizenzmanagement und Monitoring entstanden. Das Frontend und alle vorhandenen MVP-Funktionen werden erhalten und schrittweise in eine produktionsfaehige Struktur ueberfuehrt.
 
 ## Leitplanken
 
@@ -39,15 +39,15 @@ Aus dem bestehenden Single-File-Prototyp `MVPindex.html` entsteht eine lauffaehi
 ## Aktueller Frontend-Umfang
 
 - Simulierter Admin-Login
-- Dashboard fuer Lizenzpools
-- KPI-Karten fuer Paketanzahl, kritische Pools, Logic-App-Status und Auto-Approver
+- Dashboard fuer Lizenzpools, nach Auslastung sortiert
+- KPI-Karten fuer Paketanzahl, kritische Pools, freie Plaetze, Logic-App-Status und Auto-Approver
 - Kritisches Warnbanner
-- Lizenzkarten mit Auslastung, Schwellwerten und Blockierungsstatus
-- Detailmodal inklusive 30-Tage-Aktivitaetsgrafik mit Chart.js
-- Zuweisungshistorie mit Suche, Sortierung und Export
-- System-Logs mit Filter, Pause, Clear und Export
+- Lizenzkarten mit Auslastung, Trend, Schwellwerten und Blockierungsstatus
+- Detailmodal inklusive 30-Tage-Aktivitaetsgrafik und letzter Vorgangsuebersicht
+- Zuweisungshistorie mit Suche, Datumsfilter, Statusfilter, Sortierung, Pagination und Export
+- System-Logs mit Filter, Pause, Auto-Scroll, Clear und Export
 - Einstellungen fuer Schwellwerte
-- Pflege eigener Lizenzpakete inklusive SKU, Bestand, Verbrauch, Warnschwellwert und Blockierungsstatus
+- Pflege eigener Lizenzpakete inklusive SKU, Bestand, Verbrauch, Warnschwellwert, Blockierungsstatus und Bearbeitung
 - Auto-Approver-Steuerung
 - Toast-Meldungen
 - Auto-Refresh

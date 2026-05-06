@@ -102,7 +102,7 @@
         <!-- TAB: Dashboard -->
         <div id="content-dashboard" class="tab-content block fade-in">
             <!-- KPI Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-5 mb-8">
                 <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-gray-800 flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-500 mb-1">Überwachte Pakete</p>
@@ -137,6 +137,13 @@
                     </div>
                     <i data-lucide="activity" class="w-10 h-10 text-[#0067B8] opacity-30"></i>
                 </div>
+                <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-emerald-500 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Freie Plätze</p>
+                        <p class="text-3xl font-bold text-emerald-700" id="kpi-free">-</p>
+                    </div>
+                    <i data-lucide="badge-check" class="w-10 h-10 text-emerald-500 opacity-30"></i>
+                </div>
             </div>
 
             <!-- Steuerleiste -->
@@ -168,6 +175,14 @@
                     <h2 class="font-semibold text-gray-800">Letzte Zuweisungsentscheidungen</h2>
                     <div class="flex flex-wrap items-center gap-3">
                         <input type="text" id="history-search" placeholder="Suchen..." class="px-3 py-1 text-sm border border-gray-300 rounded w-40 focus:outline-none focus:border-[#A6111E]">
+                        <input type="date" id="history-from" class="px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#A6111E]" title="Von">
+                        <input type="date" id="history-to" class="px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#A6111E]" title="Bis">
+                        <select id="history-result" class="px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#A6111E]">
+                            <option value="all">Alle Entscheidungen</option>
+                            <option value="approved">Genehmigt</option>
+                            <option value="denied">Abgelehnt</option>
+                        </select>
+                        <button id="history-clear-filters" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition">Filter zurücksetzen</button>
                         <span class="text-xs text-gray-500">Filter: Letzte 30 Tage</span>
                         <div class="flex gap-1">
                             <button id="export-history-csv" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition">CSV</button>
@@ -190,6 +205,7 @@
                         <tbody id="history-list-container" class="bg-white divide-y divide-gray-200"></tbody>
                     </table>
                 </div>
+                <div id="history-pagination" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50"></div>
                 <div id="empty-history" class="hidden text-center py-12 text-gray-500">
                     <i data-lucide="file-text" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
                     <p>Keine Zuweisungshistorie vorhanden.</p>
@@ -250,6 +266,7 @@
                     <span id="custom-package-count" class="text-xs text-gray-500"></span>
                 </div>
                 <form id="custom-package-form" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-4 items-end">
+                    <input type="hidden" id="custom-package-edit-id" value="">
                     <label class="xl:col-span-3 text-sm font-medium text-gray-600">
                         Paketname
                         <input type="text" id="custom-package-name" maxlength="80" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-[#A6111E]">
@@ -274,9 +291,12 @@
                         <input type="checkbox" id="custom-package-blocked" class="rounded">
                         Blockiert
                     </label>
-                    <button type="submit" class="xl:col-span-1 btn-primary px-4 py-2 rounded font-medium text-sm flex items-center justify-center gap-2">
+                    <button type="submit" id="custom-package-submit" class="xl:col-span-1 btn-primary px-4 py-2 rounded font-medium text-sm flex items-center justify-center gap-2">
                         <i data-lucide="plus" class="w-4 h-4"></i>
                         Hinzufügen
+                    </button>
+                    <button type="button" id="custom-package-cancel" class="hidden xl:col-span-1 px-4 py-2 rounded font-medium text-sm border border-gray-300 text-gray-600 hover:bg-gray-50">
+                        Abbrechen
                     </button>
                 </form>
                 <div class="mt-6 overflow-x-auto">

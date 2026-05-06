@@ -4,6 +4,8 @@
 
 Fuer die aktuelle Datenmenge wird keine eigene Docker-Datenbank aufgebaut. Eigene Lizenzpakete, Schwellwerte und kleine Settings werden spaeter ueber Azure Functions in Azure Storage persistiert. Lokal nutzt die App bis dahin `localStorage` als Entwicklungsadapter.
 
+Die aktuelle App unterstuetzt bereits das Anlegen, Bearbeiten und Loeschen eigener Pakete. Der produktive API-Vertrag muss diese Operationen deshalb 1:1 abbilden.
+
 ## Warum Azure Storage
 
 - Die erwartete Datenmenge ist sehr klein, aktuell hoechstens wenige eigene Pakete.
@@ -62,6 +64,7 @@ Der lokale Adapter ist nur fuer Entwicklung und Demos gedacht. Er ist nicht mand
 ```text
 GET    /api/licenses
 POST   /api/packages
+PATCH  /api/packages/{id}
 DELETE /api/packages/{id}
 POST   /api/settings/thresholds
 POST   /api/approver/state
@@ -74,5 +77,5 @@ POST   /api/approver/state
 1. Aktuelle `localStorage`-Datenstruktur beibehalten.
 2. Azure Function Endpunkte mit identischem JSON-Vertrag bauen.
 3. Azure Storage Tabelle oder Blob fuer `customPackages` und `settings` anbinden.
-4. `fetchLicenses()`, `createCustomPackage()`, `removeCustomPackage()` und `saveThresholds()` in `src/app.js` auf `/api` umstellen.
+4. `fetchLicenses()`, `createCustomPackage()`, `updateCustomPackage()`, `removeCustomPackage()` und `saveThresholds()` in `src/app.js` auf `/api` umstellen.
 5. Optional spaeter auf Azure SQL/PostgreSQL migrieren, falls relationale Historie, Rollenmodell oder Auditpflichten deutlich wachsen.
