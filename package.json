@@ -1,0 +1,9 @@
+{
+  "name": "gema-m365-lizenz-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/static-server.js"
+  }
+}
+

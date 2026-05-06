@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GEMA M365 Lizenz-Monitor</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js für die Aktivitätsgrafik -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.25s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .sortable:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        .sort-indicator {
+            margin-left: 4px;
+            font-size: 0.7em;
+        }
+
+        .gema-logo {
+            background-color: #A6111E;
+            color: white;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+        }
+        .btn-primary {
+            background-color: #0067B8;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #005a9e;
+        }
+        .btn-danger {
+            background-color: #A6111E;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .btn-danger:hover {
+            background-color: #8b0f19;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 antialiased">
+
+<!-- Toast Container -->
+<div id="toast-container" class="toast hidden"></div>
+
+<!-- Login View -->
+<div id="login-view" class="min-h-screen flex items-center justify-center p-4 fade-in" style="background: linear-gradient(145deg, #f9fafb 0%, #e5e7eb 100%);">
+    <div class="absolute top-0 w-full h-1 bg-[#A6111E]"></div>
+    <div class="bg-white p-10 shadow-2xl w-full max-w-md relative z-10">
+        <div class="flex items-center gap-3 mb-8">
+            <div class="gema-logo text-lg">GEMA</div>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800 tracking-tight">GEMA</h1>
+                <p class="text-xs text-gray-500">M365 Lizenz-Monitor</p>
+            </div>
+        </div>
+        <h2 class="text-xl mb-1 font-semibold">Anmelden</h2>
+        <p class="text-sm text-gray-500 mb-6">Nur für autorisierte Administratoren</p>
+        <form id="login-form">
+            <input type="email" value="admin@gema.de" class="w-full border-b border-gray-300 px-1 py-2 mb-4 focus:border-[#A6111E] outline-none bg-transparent" placeholder="E-Mail-Adresse" required>
+            <input type="password" value="password" class="w-full border-b border-gray-300 px-1 py-2 mb-8 focus:border-[#A6111E] outline-none bg-transparent" placeholder="Kennwort" required>
+            <div class="flex justify-between items-center text-sm">
+                <a href="#" class="text-[#0067B8] hover:underline">Zugriffshilfe</a>
+                <button type="submit" id="login-btn" class="btn-primary py-2 px-8 font-medium">Weiter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- App View -->
+<div id="app-view" class="min-h-screen hidden fade-in flex flex-col bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white border-b-2 border-[#A6111E] px-6 py-3 shadow-sm z-20">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="gema-logo text-lg">GEMA</div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">Lizenz-Monitor</h1>
+                    <p class="text-xs text-gray-500">Entra ID Access Package Monitoring</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-[#A6111E]"></i>
+                    <span>Admin Console</span>
+                </div>
+                <button id="logout-btn" class="text-gray-400 hover:text-[#A6111E] transition-colors" title="Abmelden">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Globales Warnbanner -->
+    <div id="critical-banner" class="hidden bg-red-600 text-white px-6 py-2 text-sm font-medium flex items-center justify-between z-10 shadow-md">
+        <span id="critical-banner-text">⚠️ Kritische Lizenzauslastung – Zuweisungen könnten blockiert werden.</span>
+        <button onclick="dismissBanner()" class="text-white opacity-70 hover:opacity-100">&times;</button>
+    </div>
+
+    <!-- Navigation -->
+    <div class="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6">
+            <nav class="flex space-x-6 -mb-px" aria-label="Tabs">
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn border-[#A6111E] text-[#A6111E] py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                    <span>Lizenzbestand</span>
+                    <span class="ml-1 w-2 h-2 rounded-full bg-[#A6111E] inline-block" id="critical-indicator" style="display: none;"></span>
+                </button>
+                <button onclick="switchTab('history')" id="tab-history" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors">
+                    <i data-lucide="history" class="w-4 h-4"></i>
+                    <span>Zuweisungshistorie</span>
+                </button>
+                <button onclick="switchTab('logs')" id="tab-logs" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors">
+                    <i data-lucide="terminal" class="w-4 h-4"></i>
+                    <span>System-Logs</span>
+                </button>
+                <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span>Einstellungen</span>
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Hauptinhalt -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full">
+        
+        <!-- TAB: Dashboard -->
+        <div id="content-dashboard" class="tab-content block fade-in">
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
+                <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-gray-800 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Überwachte Pakete</p>
+                        <p class="text-3xl font-bold text-gray-800" id="kpi-total">-</p>
+                    </div>
+                    <i data-lucide="package" class="w-10 h-10 text-gray-300"></i>
+                </div>
+                <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-[#A6111E] flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Kritisch (<span id="threshold-display">80</span>%)</p>
+                        <p class="text-3xl font-bold text-[#A6111E]" id="kpi-critical">-</p>
+                    </div>
+                    <i data-lucide="alert-triangle" class="w-10 h-10 text-[#A6111E] opacity-30"></i>
+                </div>
+                <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-emerald-600 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Logic App Status</p>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span id="logicapp-dot" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span id="logicapp-status-text" class="font-semibold text-emerald-700">Online</span>
+                        </div>
+                    </div>
+                    <i data-lucide="server" class="w-10 h-10 text-emerald-500 opacity-30"></i>
+                </div>
+                <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-[#0067B8] flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Auto-Approver</p>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span id="approver-dot" class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                            <span id="approver-status-text" class="font-semibold text-emerald-700">Aktiv</span>
+                        </div>
+                    </div>
+                    <i data-lucide="activity" class="w-10 h-10 text-[#0067B8] opacity-30"></i>
+                </div>
+            </div>
+
+            <!-- Steuerleiste -->
+            <div class="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <h2 class="text-lg font-semibold text-gray-800">Aktuelle Lizenzpools</h2>
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <input type="checkbox" id="auto-refresh-toggle" class="rounded" onchange="toggleAutoRefresh(this.checked)">
+                        Auto-Refresh (5 Min)
+                    </label>
+                    <button onclick="refreshDashboard()" class="flex items-center gap-1 text-sm text-gray-500 hover:text-[#A6111E] transition-colors">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Aktualisieren
+                    </button>
+                </div>
+            </div>
+
+            <!-- Lizenzkacheln -->
+            <div id="license-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+            <div id="empty-dashboard" class="hidden text-center py-12 text-gray-500">
+                <i data-lucide="package-open" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                <p>Keine Lizenzpakete gefunden.</p>
+            </div>
+        </div>
+
+        <!-- TAB: Zuweisungshistorie (mit Suche) -->
+        <div id="content-history" class="tab-content hidden fade-in">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                    <h2 class="font-semibold text-gray-800">Letzte Zuweisungsentscheidungen</h2>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <input type="text" id="history-search" placeholder="Suchen..." class="px-3 py-1 text-sm border border-gray-300 rounded w-40 focus:outline-none focus:border-[#A6111E]">
+                        <span class="text-xs text-gray-500">Filter: Letzte 30 Tage</span>
+                        <div class="flex gap-1">
+                            <button id="export-history-csv" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition">CSV</button>
+                            <button id="export-history-json" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition">JSON</button>
+                            <button id="export-history-txt" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition">TXT</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="time">Zeitpunkt <span class="sort-indicator"></span></th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="user">Nutzer <span class="sort-indicator"></span></th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zugriffspaket</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="result">Entscheidung <span class="sort-indicator"></span></th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grund</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-list-container" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+                <div id="empty-history" class="hidden text-center py-12 text-gray-500">
+                    <i data-lucide="file-text" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p>Keine Zuweisungshistorie vorhanden.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: System-Logs (unverändert) -->
+        <div id="content-logs" class="tab-content hidden fade-in">
+            <!-- ... gleicher Log-Bereich ... -->
+            <div class="bg-[#1e1e2e] rounded-lg shadow-sm overflow-hidden border border-gray-700">
+                <div class="bg-[#2a2a3c] text-gray-300 px-6 py-3 text-sm font-mono flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 border-b border-gray-700">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="terminal" class="w-4 h-4"></i>
+                        <span>Azure Function Output – AutoApproverJob</span>
+                    </div>
+                    <div class="flex gap-3 items-center">
+                        <span class="px-2 py-0.5 rounded bg-red-900/40 text-red-400 text-xs">Errors: <span id="log-error-count">0</span></span>
+                        <span class="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-400 text-xs">Healthy</span>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 px-4 py-2 bg-[#161622] border-b border-gray-700">
+                    <input type="text" id="log-filter" placeholder="Filter..." class="bg-gray-700 text-gray-200 px-2 py-1 rounded text-xs w-32 sm:w-48 border border-gray-600 focus:outline-none focus:border-[#A6111E]">
+                    <button id="log-pause-btn" class="text-gray-400 hover:text-white text-xs flex items-center gap-1" onclick="toggleLogPause()">
+                        <i data-lucide="pause" class="w-3 h-3" id="log-pause-icon"></i>
+                        <span id="log-pause-label">Pause</span>
+                    </button>
+                    <button id="log-clear-btn" class="text-gray-400 hover:text-white text-xs flex items-center gap-1" onclick="clearLogs()">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
+                    </button>
+                    <button id="log-export-btn" class="text-gray-400 hover:text-white text-xs flex items-center gap-1" onclick="exportLogs()">
+                        <i data-lucide="download" class="w-3 h-3"></i> Export
+                    </button>
+                </div>
+                <div id="logs-container" class="p-4 font-mono text-xs sm:text-sm h-[450px] overflow-y-auto space-y-2"></div>
+                <div id="empty-logs" class="hidden text-center py-12 text-gray-500">
+                    <i data-lucide="terminal" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p>Keine Log-Einträge vorhanden.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Einstellungen -->
+        <div id="content-settings" class="tab-content hidden fade-in">
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Auto-Approver Steuerung</h2>
+                <p class="text-sm text-gray-500 mb-4">Hier können Sie den automatischen Genehmigungsprozess temporär deaktivieren.</p>
+                <div class="flex items-center gap-4">
+                    <button id="toggle-approver-btn" class="btn-danger px-4 py-2 rounded font-medium text-sm" onclick="toggleAutoApprover()">
+                        <span id="toggle-approver-text">Auto-Approver deaktivieren</span>
+                    </button>
+                    <span id="approver-global-status" class="text-sm text-gray-600">Derzeit: <strong>Aktiv</strong></span>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Schwellenwerte konfigurieren</h2>
+                <p class="text-sm text-gray-500 mb-6">Legen Sie für jedes Lizenzpaket fest, ab wann eine Warnung ausgelöst werden soll.</p>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Paket</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Schwellwert (%)</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="settings-thresholds-body" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+                <div class="mt-6 flex items-center gap-4">
+                    <button id="save-thresholds-btn" class="btn-primary py-2 px-6 rounded font-medium text-sm">Speichern</button>
+                    <span id="settings-save-status" class="text-sm text-gray-500 hidden">Gespeichert.</span>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: Lizenz-Detail mit 30-Tage-Aktivitätsgrafik -->
+<div id="license-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden items-center justify-center" onclick="closeModal(event)">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 relative max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600" onclick="closeModal()">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div id="modal-content">
+            <!-- Dynamisch mit openLicenseDetail() gefüllt -->
+        </div>
+    </div>
+</div>
+
+<script>
+    /**
+     * =================================================================================
+     * GEMA M365 LIZENZ-MONITOR – MVP (mit Historiensuche & Aktivitätsgrafik)
+     * =================================================================================
+     */
+
+    // ---------------------------------------------------------------
+    // MOCK-DATEN (10 Lizenzen)
+    // ---------------------------------------------------------------
+    const mockLicenses = [
+        { id: 1,  name: "Visio Professional",        sku: "VISIO_P1",           total: 50,  used: 49, blocked: false, trend: +2 },
+        { id: 2,  name: "Project Plan 3",            sku: "PROJECT_P3",         total: 20,  used: 12, blocked: false, trend: 0 },
+        { id: 3,  name: "Power BI Pro",              sku: "POWER_BI_PRO",       total: 100, used: 85, blocked: false, trend: +4 },
+        { id: 4,  name: "Adobe Acrobat Pro (Custom)",sku: "ADOBE_PRO",          total: 30,  used: 30, blocked: true,  trend: 0 },
+        { id: 5,  name: "Microsoft 365 E5",          sku: "M365_E5",            total: 200, used: 178, blocked: false, trend: +1 },
+        { id: 6,  name: "Exchange Online Plan 2",    sku: "EXO_P2",             total: 80,  used: 72, blocked: false, trend: +3 },
+        { id: 7,  name: "SharePoint Online Plan 2",  sku: "SPO_P2",             total: 60,  used: 58, blocked: false, trend: 0 },
+        { id: 8,  name: "Teams Phone Standard",      sku: "TEAMS_PHONE",        total: 40,  used: 39, blocked: false, trend: +1 },
+        { id: 9,  name: "Defender for Office 365 P2",sku: "DEFENDER_O365_P2",   total: 120, used: 90, blocked: false, trend: +5 },
+        { id: 10, name: "Information Protection",    sku: "AIP_P2",             total: 150, used: 140,blocked: false, trend: +2 }
+    ];
+
+    // ---------------------------------------------------------------
+    // MOCK-HISTORIE (zufällige Einträge über 30 Tage)
+    // ---------------------------------------------------------------
+    function generateMockHistory() {
+        const baseDate = new Date();
+        const users = [
+            "max.muster@gema.de", "anna.schmidt@gema.de", "tom.weber@gema.de",
+            "lisa.meier@gema.de", "jan.becker@gema.de", "sarah.klein@gema.de"
+        ];
+        const reasonsApproved = "Freie Lizenz vorhanden";
+        const reasonsDenied = ["Keine freien Lizenzen", "Pool erschöpft", "Wartungsfenster"];
+        
+        function randomDate(daysBack = 30) {
+            const d = new Date(baseDate);
+            d.setDate(d.getDate() - Math.floor(Math.random() * daysBack));
+            d.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
+            return d;
+        }
+
+        const entries = [];
+        mockLicenses.forEach(lic => {
+            const count = Math.floor(Math.random() * 5) + 2; // 2-6 Einträge
+            for (let i = 0; i < count; i++) {
+                const date = randomDate();
+                const isDenied = lic.blocked || (lic.used >= lic.total) || Math.random() < 0.3;
+                const result = isDenied ? "denied" : "approved";
+                const reason = result === "approved"
+                    ? reasonsApproved
+                    : reasonsDenied[Math.floor(Math.random() * reasonsDenied.length)] + ` (${lic.used}/${lic.total})`;
+                entries.push({
+                    time: `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`,
+                    user: users[Math.floor(Math.random() * users.length)],
+                    package: lic.name,
+                    sku: lic.sku,
+                    result: result,
+                    reason: reason,
+                    requestId: `REQ-${Math.floor(1000 + Math.random() * 9000)}`
+                });
+            }
+        });
+        entries.sort((a, b) => new Date(b.time) - new Date(a.time));
+        return entries;
+    }
+    const mockHistory = generateMockHistory();
+
+    // ---------------------------------------------------------------
+    // MOCK-LOGS
+    // ---------------------------------------------------------------
+    const mockLogs = [
+        { time: "11:34:01", level: "INFO",    msg: "AutoApprover Timer ausgelöst." },
+        { time: "11:34:02", level: "INFO",    msg: "1 neue PendingApproval-Anfrage für VISIO_P1 (max.muster@gema.de)." },
+        { time: "11:34:03", level: "SUCCESS", msg: "Bestand ausreichend: 2 frei. Genehmigung erteilt (REQ-4821)." },
+        { time: "09:12:01", level: "INFO",    msg: "AutoApprover Timer ausgelöst." },
+        { time: "09:12:02", level: "INFO",    msg: "1 neue PendingApproval-Anfrage für ADOBE_PRO (anna.schmidt@gema.de)." },
+        { time: "09:12:03", level: "WARN",    msg: "Bestand erschöpft (0/30). Blockiere Anfrage." },
+        { time: "09:12:04", level: "SUCCESS", msg: "Ablehnung gesendet mit Grund: 'Keine Lizenzen verfügbar'." },
+        { time: "09:12:05", level: "ERROR",   msg: "Teams-Webhook-Fehler (401). Bitte App Settings prüfen." },
+        { time: "10:00:00", level: "INFO",    msg: "Logic App Health Check: OK. Latenz 120ms." }
+    ];
+
+    // ---------------------------------------------------------------
+    // GLOBALER ZUSTAND
+    // ---------------------------------------------------------------
+    let currentLicenses = [...mockLicenses];
+    let currentHistory = [...mockHistory];
+    let currentLogs = [...mockLogs];
+    let thresholds = JSON.parse(localStorage.getItem('licenseThresholds')) || {};
+    const DEFAULT_THRESHOLD = 80;
+    let autoApproverActive = localStorage.getItem('autoApproverActive') !== 'false';
+    let logPaused = false;
+    let autoRefreshInterval = null;
+    let logicAppOnline = true;
+    let currentLicenseChart = null; // Referenz auf Chart.js-Instanz
+
+    // ---------------------------------------------------------------
+    // BACKEND-SIMULATIONSFUNKTIONEN
+    // ---------------------------------------------------------------
+    async function fetchLicenses() {
+        showToast('Lade Lizenzen...', 'info');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        return [...mockLicenses];
+    }
+
+    async function fetchHistory() {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        return [...currentHistory];
+    }
+
+    async function fetchLogs() {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        return [...mockLogs];
+    }
+
+    async function saveThresholds(newThresholds) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        localStorage.setItem('licenseThresholds', JSON.stringify(newThresholds));
+        thresholds = newThresholds;
+        showToast('Schwellwerte gespeichert', 'success');
+    }
+
+    // ---------------------------------------------------------------
+    // UI-HILFEN
+    // ---------------------------------------------------------------
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        container.className = `toast px-4 py-3 rounded shadow-lg font-medium text-sm ${
+            type === 'success' ? 'bg-emerald-600 text-white' :
+            type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
+        }`;
+        container.textContent = message;
+        container.classList.remove('hidden');
+        setTimeout(() => container.classList.add('hidden'), 3000);
+    }
+
+    function dismissBanner() {
+        document.getElementById('critical-banner').classList.add('hidden');
+    }
+
+    function updateCriticalBanner() {
+        const high = currentLicenses.filter(l => (l.used / l.total) >= (thresholds[l.id] || DEFAULT_THRESHOLD) / 100);
+        const banner = document.getElementById('critical-banner');
+        if (high.length > 0) {
+            banner.classList.remove('hidden');
+            document.getElementById('critical-banner-text').textContent =
+                `⚠️ ${high.length} Lizenzpool(s) über dem Schwellwert – Zuweisungen könnten blockiert werden.`;
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+
+    function updateKPIs() {
+        const total = currentLicenses.length;
+        const critical = currentLicenses.filter(l => (l.used / l.total) >= (thresholds[l.id] || DEFAULT_THRESHOLD) / 100).length;
+        document.getElementById('kpi-total').textContent = total;
+        document.getElementById('kpi-critical').textContent = critical;
+        document.getElementById('critical-indicator').style.display = critical > 0 ? 'inline-block' : 'none';
+        document.getElementById('threshold-display').textContent = Object.values(thresholds)[0] || DEFAULT_THRESHOLD;
+    }
+
+    function updateApproverStatusUI() {
+        const dot = document.getElementById('approver-dot');
+        const text = document.getElementById('approver-status-text');
+        const toggleBtn = document.getElementById('toggle-approver-btn');
+        const toggleText = document.getElementById('toggle-approver-text');
+        const globalStatus = document.getElementById('approver-global-status');
+        if (autoApproverActive) {
+            dot.className = 'w-3 h-3 rounded-full bg-emerald-500';
+            text.textContent = 'Aktiv';
+            text.className = 'font-semibold text-emerald-700';
+            if (toggleBtn) {
+                toggleBtn.className = 'btn-danger px-4 py-2 rounded font-medium text-sm';
+                toggleText.textContent = 'Auto-Approver deaktivieren';
+            }
+            if (globalStatus) globalStatus.innerHTML = 'Derzeit: <strong>Aktiv</strong>';
+        } else {
+            dot.className = 'w-3 h-3 rounded-full bg-red-500';
+            text.textContent = 'Inaktiv';
+            text.className = 'font-semibold text-red-700';
+            if (toggleBtn) {
+                toggleBtn.className = 'bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-medium text-sm';
+                toggleText.textContent = 'Auto-Approver aktivieren';
+            }
+            if (globalStatus) globalStatus.innerHTML = 'Derzeit: <strong>Inaktiv</strong>';
+        }
+    }
+
+    function updateLogicAppStatusUI() {
+        const dot = document.getElementById('logicapp-dot');
+        const text = document.getElementById('logicapp-status-text');
+        if (logicAppOnline) {
+            dot.className = 'w-3 h-3 rounded-full bg-emerald-500 animate-pulse';
+            text.textContent = 'Online';
+            text.className = 'font-semibold text-emerald-700';
+        } else {
+            dot.className = 'w-3 h-3 rounded-full bg-red-500';
+            text.textContent = 'Offline';
+            text.className = 'font-semibold text-red-700';
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // DASHBOARD
+    // ---------------------------------------------------------------
+    function renderDashboard() {
+        const container = document.getElementById('license-grid');
+        container.innerHTML = '';
+        if (currentLicenses.length === 0) {
+            document.getElementById('empty-dashboard').classList.remove('hidden');
+            container.classList.add('hidden');
+        } else {
+            document.getElementById('empty-dashboard').classList.add('hidden');
+            container.classList.remove('hidden');
+        }
+
+        currentLicenses.forEach(lic => {
+            const threshold = thresholds[lic.id] || DEFAULT_THRESHOLD;
+            const pct = (lic.used / lic.total) * 100;
+            const free = lic.total - lic.used;
+            let ringColor = '#10b981';
+            let textColor = 'text-emerald-700';
+            if (pct >= 100) { ringColor = '#A6111E'; textColor = 'text-[#A6111E]'; }
+            else if (pct >= threshold) { ringColor = '#f59e0b'; textColor = 'text-amber-700'; }
+
+            const blockedHtml = lic.blocked
+                ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200"><i data-lucide="lock" class="w-3 h-3 mr-1"></i> Blockiert</span>`
+                : '';
+
+            container.insertAdjacentHTML('beforeend', `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all cursor-pointer group"
+                     onclick="openLicenseDetail(${lic.id})">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-lg flex items-center gap-2">${lic.name} ${blockedHtml}</h3>
+                            <span class="text-xs font-mono text-gray-400">SKU: ${lic.sku}</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-gray-300 group-hover:text-[#A6111E] transition-colors"></i>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="relative w-16 h-16">
+                            <svg class="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="15.5" fill="none" stroke="#e5e7eb" stroke-width="3" />
+                                <circle cx="18" cy="18" r="15.5" fill="none" stroke="${ringColor}" stroke-width="3"
+                                    stroke-dasharray="${(Math.min(pct, 100)/100) * 97.4} 97.4" stroke-linecap="round" />
+                            </svg>
+                            <span class="absolute inset-0 flex items-center justify-center text-sm font-bold ${textColor}">${Math.round(pct)}%</span>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-500">Verbraucht</span>
+                                <span class="font-medium">${lic.used} / ${lic.total}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-500">Frei</span>
+                                <span class="font-medium ${free === 0 ? 'text-red-600' : 'text-emerald-600'}">${free}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        });
+
+        lucide.createIcons();
+        updateKPIs();
+        updateCriticalBanner();
+        updateApproverStatusUI();
+        updateLogicAppStatusUI();
+    }
+
+    async function refreshDashboard() {
+        try {
+            currentLicenses = await fetchLicenses();
+            await checkLogicAppHealth();
+            renderDashboard();
+            showToast('Daten aktualisiert', 'success');
+        } catch (e) {
+            showToast('Fehler beim Laden', 'error');
+        }
+    }
+
+    function toggleAutoRefresh(enable) {
+        if (enable) {
+            autoRefreshInterval = setInterval(refreshDashboard, 5 * 60 * 1000);
+            showToast('Auto-Refresh aktiviert (5 Min)', 'info');
+        } else {
+            clearInterval(autoRefreshInterval);
+            showToast('Auto-Refresh deaktiviert', 'info');
+        }
+    }
+
+    async function checkLogicAppHealth() {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        logicAppOnline = Math.random() > 0.1;
+        updateLogicAppStatusUI();
+    }
+
+    // ---------------------------------------------------------------
+    // LIZENZ-DETAIL MODAL (30-Tage-Aktivitätsgrafik)
+    // ---------------------------------------------------------------
+    function openLicenseDetail(id) {
+        const lic = currentLicenses.find(l => l.id === id);
+        if (!lic) return;
+        const free = lic.total - lic.used;
+
+        // Historie für diese SKU filtern (letzte 30 Tage sind bereits in currentHistory)
+        const relevantHistory = currentHistory.filter(h => h.sku === lic.sku);
+
+        // Modal-Inhalt aufbauen
+        document.getElementById('modal-content').innerHTML = `
+            <div class="border-b border-gray-200 pb-4 mb-4">
+                <h3 class="text-xl font-bold mb-1">${lic.name}</h3>
+                <p class="text-sm text-gray-500">${lic.sku} – Gesamtlizenzen: ${lic.total}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-gray-50 p-3 rounded">
+                    <p class="text-xs text-gray-500">Verbraucht</p>
+                    <p class="text-2xl font-bold">${lic.used}</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded">
+                    <p class="text-xs text-gray-500">Verfügbar</p>
+                    <p class="text-2xl font-bold ${free===0 ? 'text-red-600' : 'text-emerald-600'}">${free}</p>
+                </div>
+            </div>
+            <h4 class="font-semibold text-sm text-gray-700 mb-2">Buchungsaktivitäten (letzte 30 Tage)</h4>
+            <div class="w-full h-64">
+                <canvas id="licenseActivityChart"></canvas>
+            </div>
+        `;
+
+        // Modal öffnen
+        document.getElementById('license-modal').classList.remove('hidden');
+        document.getElementById('license-modal').classList.add('flex');
+
+        // Chart.js initialisieren
+        renderLicenseActivityChart(relevantHistory);
+    }
+
+    /**
+     * Erstellt ein Balkendiagramm mit täglichen Genehmigungen/Ablehnungen.
+     * @param {Array} historyForSku - Array der Zuweisungseinträge für diese SKU
+     */
+    function renderLicenseActivityChart(historyEntries) {
+        // Letzte 30 Tage aufbereiten
+        const days = [];
+        const today = new Date();
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            days.push(d.toISOString().slice(0, 10)); // YYYY-MM-DD
+        }
+
+        // Zählung pro Tag: approved / denied
+        const approvedCounts = new Array(30).fill(0);
+        const deniedCounts = new Array(30).fill(0);
+
+        historyEntries.forEach(entry => {
+            const dateStr = entry.time.slice(0, 10); // YYYY-MM-DD
+            const idx = days.indexOf(dateStr);
+            if (idx !== -1) {
+                if (entry.result === 'approved') approvedCounts[idx]++;
+                else deniedCounts[idx]++;
+            }
+        });
+
+        // Altes Chart zerstören, falls vorhanden
+        if (currentLicenseChart) {
+            currentLicenseChart.destroy();
+            currentLicenseChart = null;
+        }
+
+        const ctx = document.getElementById('licenseActivityChart').getContext('2d');
+        currentLicenseChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: days.map(d => d.slice(5)), // MM-DD
+                datasets: [
+                    {
+                        label: 'Genehmigt',
+                        data: approvedCounts,
+                        backgroundColor: '#10b981',
+                        borderRadius: 2,
+                    },
+                    {
+                        label: 'Abgelehnt',
+                        data: deniedCounts,
+                        backgroundColor: '#A6111E',
+                        borderRadius: 2,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true, grid: { display: false } },
+                    y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } }
+                },
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    }
+
+    function closeModal(event) {
+        if (event && event.target !== document.getElementById('license-modal')) return;
+        document.getElementById('license-modal').classList.add('hidden');
+        document.getElementById('license-modal').classList.remove('flex');
+        // Chart zerstören
+        if (currentLicenseChart) {
+            currentLicenseChart.destroy();
+            currentLicenseChart = null;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // HISTORY TAB (mit Suche & Export)
+    // ---------------------------------------------------------------
+    async function renderHistory() {
+        const container = document.getElementById('history-list-container');
+        container.innerHTML = '';
+        try {
+            if (currentHistory.length === 0) {
+                document.getElementById('empty-history').classList.remove('hidden');
+            } else {
+                document.getElementById('empty-history').classList.add('hidden');
+                // Vollständige Liste anzeigen (Suche startet erst nach Filtereingabe)
+                rebuildHistoryTable(currentHistory);
+            }
+        } catch (e) {
+            showToast('Fehler beim Laden der Historie', 'error');
+        }
+        lucide.createIcons();
+        attachHistorySort();
+
+        // Suchfeld-Listener
+        const searchInput = document.getElementById('history-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const query = this.value.toLowerCase();
+                const filtered = currentHistory.filter(h =>
+                    h.user.toLowerCase().includes(query) ||
+                    h.package.toLowerCase().includes(query) ||
+                    h.sku.toLowerCase().includes(query) ||
+                    h.reason.toLowerCase().includes(query) ||
+                    h.requestId.toLowerCase().includes(query)
+                );
+                rebuildHistoryTable(filtered);
+            });
+        }
+
+        // Export-Buttons
+        document.getElementById('export-history-csv').onclick = () => exportHistory('csv');
+        document.getElementById('export-history-json').onclick = () => exportHistory('json');
+        document.getElementById('export-history-txt').onclick = () => exportHistory('txt');
+    }
+
+    /**
+     * Baut die History-Tabelle mit einem optionalen gefilterten Array neu auf.
+     * @param {Array|null} dataArray - zu rendernde Einträge (wenn null, dann currentHistory)
+     */
+    function rebuildHistoryTable(dataArray) {
+        const container = document.getElementById('history-list-container');
+        container.innerHTML = '';
+        const data = dataArray || currentHistory;
+        if (data.length === 0) {
+            document.getElementById('empty-history').classList.remove('hidden');
+        } else {
+            document.getElementById('empty-history').classList.add('hidden');
+            data.forEach(h => {
+                const isApproved = h.result === 'approved';
+                container.insertAdjacentHTML('beforeend', `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${h.time}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700">${h.user}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${h.package} <span class="text-xs text-gray-400 font-mono">(${h.sku})</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                                isApproved ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-red-100 text-red-800 border-red-200'
+                            }">
+                                <i data-lucide="${isApproved ? 'check' : 'x'}" class="w-3 h-3"></i> ${isApproved ? 'Genehmigt' : 'Abgelehnt'}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">${h.reason} <span class="text-gray-400">(${h.requestId})</span></td>
+                    </tr>
+                `);
+            });
+        }
+        lucide.createIcons();
+    }
+
+    let historySortKey = null;
+    let historySortAsc = true;
+
+    function attachHistorySort() {
+        document.querySelectorAll('#content-history .sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sort;
+                if (historySortKey === key) historySortAsc = !historySortAsc;
+                else { historySortKey = key; historySortAsc = true; }
+                sortHistory(key, historySortAsc);
+            });
+        });
+    }
+
+    function sortHistory(key, asc) {
+        currentHistory.sort((a, b) => {
+            let valA = a[key] || '';
+            let valB = b[key] || '';
+            if (key === 'time') { valA = new Date(valA); valB = new Date(valB); }
+            if (valA < valB) return asc ? -1 : 1;
+            if (valA > valB) return asc ? 1 : -1;
+            return 0;
+        });
+        // Nach dem Sortieren die aktuelle Filterung berücksichtigen
+        const query = document.getElementById('history-search')?.value.toLowerCase() || '';
+        const filtered = query
+            ? currentHistory.filter(h =>
+                h.user.toLowerCase().includes(query) ||
+                h.package.toLowerCase().includes(query) ||
+                h.sku.toLowerCase().includes(query) ||
+                h.reason.toLowerCase().includes(query) ||
+                h.requestId.toLowerCase().includes(query)
+            )
+            : currentHistory;
+        rebuildHistoryTable(filtered);
+    }
+
+    function exportHistory(format) {
+        if (currentHistory.length === 0) {
+            showToast('Keine Daten zum Exportieren', 'error');
+            return;
+        }
+        let content, filename, mimeType;
+        if (format === 'csv') {
+            const rows = [['Zeitpunkt','Nutzer','Paket','Entscheidung','Grund','Request-ID']];
+            currentHistory.forEach(h => rows.push([h.time, h.user, h.package, h.result, h.reason, h.requestId]));
+            content = rows.map(r => r.join(';')).join('\n');
+            filename = 'history.csv';
+            mimeType = 'text/csv';
+        } else if (format === 'json') {
+            content = JSON.stringify(currentHistory, null, 2);
+            filename = 'history.json';
+            mimeType = 'application/json';
+        } else if (format === 'txt') {
+            content = currentHistory.map(h =>
+                `[${h.time}] ${h.user} – ${h.package} (${h.sku}): ${h.result.toUpperCase()} – ${h.reason} (${h.requestId})`
+            ).join('\n');
+            filename = 'history.txt';
+            mimeType = 'text/plain';
+        }
+        downloadBlob(content, filename, mimeType);
+    }
+
+    // ---------------------------------------------------------------
+    // LOGS TAB
+    // ---------------------------------------------------------------
+    async function renderLogs() {
+        const container = document.getElementById('logs-container');
+        container.innerHTML = '';
+        try {
+            currentLogs = await fetchLogs();
+            applyLogFilter();
+        } catch (e) {
+            showToast('Fehler beim Laden der Logs', 'error');
+        }
+    }
+
+    function displayLogs(logArray) {
+        const container = document.getElementById('logs-container');
+        container.innerHTML = '';
+        const emptyLogs = document.getElementById('empty-logs');
+        if (logArray.length === 0) {
+            emptyLogs.classList.remove('hidden');
+        } else {
+            emptyLogs.classList.add('hidden');
+            logArray.forEach(log => {
+                let colorClass = 'text-blue-400';
+                if (log.level === 'SUCCESS') colorClass = 'text-emerald-400';
+                else if (log.level === 'WARN') colorClass = 'text-amber-400';
+                else if (log.level === 'ERROR') colorClass = 'text-red-400 font-semibold';
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="terminal-line flex gap-4 border-b border-gray-800 pb-1 text-xs">
+                        <span class="text-gray-500 shrink-0 w-14">[${log.time}]</span>
+                        <span class="${colorClass} w-16 shrink-0">[${log.level}]</span>
+                        <span class="text-gray-300">${log.msg}</span>
+                    </div>
+                `);
+            });
+        }
+        document.getElementById('log-error-count').textContent = logArray.filter(l => l.level === 'ERROR').length;
+    }
+
+    function applyLogFilter() {
+        const filterText = document.getElementById('log-filter').value.toLowerCase();
+        const filtered = currentLogs.filter(log =>
+            log.msg.toLowerCase().includes(filterText) || log.level.toLowerCase().includes(filterText)
+        );
+        displayLogs(filtered);
+    }
+
+    function clearLogs() {
+        currentLogs = [];
+        displayLogs([]);
+        showToast('Logs gelöscht', 'success');
+    }
+
+    function toggleLogPause() {
+        logPaused = !logPaused;
+        const icon = document.getElementById('log-pause-icon');
+        const label = document.getElementById('log-pause-label');
+        if (logPaused) {
+            label.textContent = 'Live';
+            icon.setAttribute('data-lucide', 'play');
+        } else {
+            label.textContent = 'Pause';
+            icon.setAttribute('data-lucide', 'pause');
+        }
+        lucide.createIcons();
+        showToast(logPaused ? 'Log-Live pausiert' : 'Log-Live fortgesetzt', 'info');
+    }
+
+    function exportLogs() {
+        const text = currentLogs.map(l => `[${l.time}] [${l.level}] ${l.msg}`).join('\n');
+        downloadBlob(text, 'logs.txt', 'text/plain');
+    }
+
+    document.getElementById('log-filter').addEventListener('input', applyLogFilter);
+
+    // ---------------------------------------------------------------
+    // SETTINGS TAB
+    // ---------------------------------------------------------------
+    function renderSettings() {
+        const tbody = document.getElementById('settings-thresholds-body');
+        tbody.innerHTML = '';
+        currentLicenses.forEach(lic => {
+            const currentThreshold = thresholds[lic.id] || DEFAULT_THRESHOLD;
+            tbody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td class="px-4 py-3 text-sm text-gray-700">${lic.name} <span class="text-xs text-gray-400 font-mono">${lic.sku}</span></td>
+                    <td class="px-4 py-3">
+                        <input type="number" id="threshold-${lic.id}" value="${currentThreshold}" min="0" max="100" class="w-20 px-2 py-1 border border-gray-300 rounded text-sm">
+                    </td>
+                    <td class="px-4 py-3">
+                        <button class="text-xs text-[#0067B8] hover:underline" onclick="resetThreshold(${lic.id})">Zurücksetzen</button>
+                    </td>
+                </tr>
+            `);
+        });
+        document.getElementById('save-thresholds-btn').onclick = saveSettingsThresholds;
+        updateApproverStatusUI();
+        document.getElementById('toggle-approver-btn').onclick = toggleAutoApprover;
+    }
+
+    async function saveSettingsThresholds() {
+        const newThresholds = {};
+        currentLicenses.forEach(lic => {
+            const input = document.getElementById(`threshold-${lic.id}`);
+            if (input) newThresholds[lic.id] = parseInt(input.value, 10) || DEFAULT_THRESHOLD;
+        });
+        await saveThresholds(newThresholds);
+        document.getElementById('settings-save-status').classList.remove('hidden');
+        setTimeout(() => document.getElementById('settings-save-status').classList.add('hidden'), 2000);
+        renderDashboard();
+    }
+
+    function resetThreshold(licId) {
+        document.getElementById(`threshold-${licId}`).value = DEFAULT_THRESHOLD;
+    }
+
+    function toggleAutoApprover() {
+        autoApproverActive = !autoApproverActive;
+        localStorage.setItem('autoApproverActive', autoApproverActive.toString());
+        updateApproverStatusUI();
+        // Dashboard-KPI ebenfalls aktualisieren
+        document.getElementById('approver-dot').className = autoApproverActive ? 'w-3 h-3 rounded-full bg-emerald-500' : 'w-3 h-3 rounded-full bg-red-500';
+        document.getElementById('approver-status-text').textContent = autoApproverActive ? 'Aktiv' : 'Inaktiv';
+        showToast(autoApproverActive ? 'Auto-Approver aktiviert' : 'Auto-Approver deaktiviert', autoApproverActive ? 'success' : 'error');
+    }
+
+    // ---------------------------------------------------------------
+    // TAB SWITCHING
+    // ---------------------------------------------------------------
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('border-[#A6111E]', 'text-[#A6111E]');
+            btn.classList.add('border-transparent', 'text-gray-500');
+        });
+        document.getElementById(`content-${tabId}`).classList.remove('hidden');
+        const activeBtn = document.getElementById(`tab-${tabId}`);
+        activeBtn.classList.remove('border-transparent', 'text-gray-500');
+        activeBtn.classList.add('border-[#A6111E]', 'text-[#A6111E]');
+
+        if (tabId === 'history') renderHistory();
+        else if (tabId === 'logs') renderLogs();
+        else if (tabId === 'settings') renderSettings();
+    }
+
+    // ---------------------------------------------------------------
+    // DOWNLOAD HELPER
+    // ---------------------------------------------------------------
+    function downloadBlob(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // ---------------------------------------------------------------
+    // AUTH SIMULATION
+    // ---------------------------------------------------------------
+    document.getElementById('login-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const btn = document.getElementById('login-btn');
+        btn.textContent = 'Bitte warten...';
+        btn.disabled = true;
+        setTimeout(() => {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('app-view').classList.remove('hidden');
+            btn.textContent = 'Weiter';
+            btn.disabled = false;
+            refreshDashboard();
+        }, 700);
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        document.getElementById('app-view').classList.add('hidden');
+        document.getElementById('login-view').classList.remove('hidden');
+    });
+
+    // ---------------------------------------------------------------
+    // INIT
+    // ---------------------------------------------------------------
+    lucide.createIcons();
+    updateApproverStatusUI();
+    updateLogicAppStatusUI();
+</script>
+</body>
+</html>
