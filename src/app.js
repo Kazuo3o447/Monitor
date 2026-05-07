@@ -4,98 +4,30 @@
      * =================================================================================
      */
 
-    // ---------------------------------------------------------------
-    // MOCK-DATEN (10 Lizenzen)
-    // ---------------------------------------------------------------
-    const mockLicenses = [
-        { id: 1,  name: "Visio Professional",        sku: "VISIO_P1",           total: 50,  used: 49, blocked: false, trend: +2 },
-        { id: 2,  name: "Project Plan 3",            sku: "PROJECT_P3",         total: 20,  used: 12, blocked: false, trend: 0 },
-        { id: 3,  name: "Power BI Pro",              sku: "POWER_BI_PRO",       total: 100, used: 85, blocked: false, trend: +4 },
-        { id: 4,  name: "Adobe Acrobat Pro (Custom)",sku: "ADOBE_PRO",          total: 30,  used: 30, blocked: true,  trend: 0 },
-        { id: 5,  name: "Microsoft 365 E5",          sku: "M365_E5",            total: 200, used: 178, blocked: false, trend: +1 },
-        { id: 6,  name: "Exchange Online Plan 2",    sku: "EXO_P2",             total: 80,  used: 72, blocked: false, trend: +3 },
-        { id: 7,  name: "SharePoint Online Plan 2",  sku: "SPO_P2",             total: 60,  used: 58, blocked: false, trend: 0 },
-        { id: 8,  name: "Teams Phone Standard",      sku: "TEAMS_PHONE",        total: 40,  used: 39, blocked: false, trend: +1 },
-        { id: 9,  name: "Defender for Office 365 P2",sku: "DEFENDER_O365_P2",   total: 120, used: 90, blocked: false, trend: +5 },
-        { id: 10, name: "Information Protection",    sku: "AIP_P2",             total: 150, used: 140,blocked: false, trend: +2 }
-    ];
-    const BASE_LICENSES = mockLicenses.map(lic => ({ ...lic, source: 'm365' }));
-    const CUSTOM_PACKAGES_STORAGE_KEY = 'licenseMonitor.customPackages.v1';
+    const DEFAULT_THRESHOLD = 80;
 
-    // ---------------------------------------------------------------
-    // MOCK-HISTORIE (zufällige Einträge über 30 Tage)
-    // ---------------------------------------------------------------
-    function generateMockHistory() {
-        const baseDate = new Date();
-        const users = [
-            "max.muster@gema.de", "anna.schmidt@gema.de", "tom.weber@gema.de",
-            "lisa.meier@gema.de", "jan.becker@gema.de", "sarah.klein@gema.de"
-        ];
-        const reasonsApproved = "Freie Lizenz vorhanden";
-        const reasonsDenied = ["Keine freien Lizenzen", "Pool erschöpft", "Wartungsfenster"];
-        
-        function randomDate(daysBack = 30) {
-            const d = new Date(baseDate);
-            d.setDate(d.getDate() - Math.floor(Math.random() * daysBack));
-            d.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
-            return d;
-        }
-
-        const entries = [];
-        BASE_LICENSES.forEach(lic => {
-            const count = Math.floor(Math.random() * 5) + 2; // 2-6 Einträge
-            for (let i = 0; i < count; i++) {
-                const date = randomDate();
-                const isDenied = lic.blocked || (lic.used >= lic.total) || Math.random() < 0.3;
-                const result = isDenied ? "denied" : "approved";
-                const reason = result === "approved"
-                    ? reasonsApproved
-                    : reasonsDenied[Math.floor(Math.random() * reasonsDenied.length)] + ` (${lic.used}/${lic.total})`;
-                entries.push({
-                    time: `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`,
-                    user: users[Math.floor(Math.random() * users.length)],
-                    package: lic.name,
-                    sku: lic.sku,
-                    result: result,
-                    reason: reason,
-                    requestId: `REQ-${Math.floor(1000 + Math.random() * 9000)}`
-                });
-            }
-        });
-        entries.sort((a, b) => new Date(b.time) - new Date(a.time));
-        return entries;
+    function createDefaultConfig() {
+        return {
+            licenseAliases: {},
+            customPackages: [],
+            thresholds: {}
+        };
     }
-    const mockHistory = generateMockHistory();
-
-    // ---------------------------------------------------------------
-    // MOCK-LOGS
-    // ---------------------------------------------------------------
-    const mockLogs = [
-        { time: "11:34:01", level: "INFO",    msg: "AutoApprover Timer ausgelöst." },
-        { time: "11:34:02", level: "INFO",    msg: "1 neue PendingApproval-Anfrage für VISIO_P1 (max.muster@gema.de)." },
-        { time: "11:34:03", level: "SUCCESS", msg: "Bestand ausreichend: 2 frei. Genehmigung erteilt (REQ-4821)." },
-        { time: "09:12:01", level: "INFO",    msg: "AutoApprover Timer ausgelöst." },
-        { time: "09:12:02", level: "INFO",    msg: "1 neue PendingApproval-Anfrage für ADOBE_PRO (anna.schmidt@gema.de)." },
-        { time: "09:12:03", level: "WARN",    msg: "Bestand erschöpft (0/30). Blockiere Anfrage." },
-        { time: "09:12:04", level: "SUCCESS", msg: "Ablehnung gesendet mit Grund: 'Keine Lizenzen verfügbar'." },
-        { time: "09:12:05", level: "ERROR",   msg: "Teams-Webhook-Fehler (401). Bitte App Settings prüfen." },
-        { time: "10:00:00", level: "INFO",    msg: "Logic App Health Check: OK. Latenz 120ms." }
-    ];
 
     // ---------------------------------------------------------------
     // GLOBALER ZUSTAND
     // ---------------------------------------------------------------
-    let customLicensePackages = loadCustomPackages();
-    let currentLicenses = getLicenseCatalog();
-    let currentHistory = [...mockHistory];
-    let currentLogs = [...mockLogs];
-    let thresholds = JSON.parse(localStorage.getItem('licenseThresholds')) || {};
-    const DEFAULT_THRESHOLD = 80;
-    let autoApproverActive = localStorage.getItem('autoApproverActive') !== 'false';
-    let logPaused = false;
+    let appConfig = createDefaultConfig();
+    let customLicensePackages = [];
+    let licenseAliases = {};
+    let currentLicenses = [];
+    let currentHistory = [];
+    let thresholds = {};
     let autoRefreshInterval = null;
-    let logicAppOnline = true;
     let currentLicenseChart = null; // Referenz auf Chart.js-Instanz
+    let lastSnapshotAt = null;
+    let configLoaded = false;
+    let currentRenameLicenseId = null;
     let historyFilters = {
         query: '',
         from: '',
@@ -112,42 +44,201 @@
     // ---------------------------------------------------------------
     // BACKEND-SIMULATIONSFUNKTIONEN
     // ---------------------------------------------------------------
+    function normalizeConfig(config) {
+        if (!config || typeof config !== 'object') return createDefaultConfig();
+        return {
+            licenseAliases: (config.licenseAliases && typeof config.licenseAliases === 'object' && !Array.isArray(config.licenseAliases)) ? config.licenseAliases : {},
+            customPackages: Array.isArray(config.customPackages) ? config.customPackages.map(normalizeStoredCustomPackage).filter(Boolean) : [],
+            thresholds: (config.thresholds && typeof config.thresholds === 'object' && !Array.isArray(config.thresholds)) ? config.thresholds : {}
+        };
+    }
+
+    function applyConfig(config) {
+        appConfig = normalizeConfig(config);
+        customLicensePackages = appConfig.customPackages;
+        licenseAliases = appConfig.licenseAliases;
+        thresholds = appConfig.thresholds;
+    }
+
+    function buildConfigPayload() {
+        return {
+            licenseAliases,
+            customPackages: customLicensePackages,
+            thresholds
+        };
+    }
+
+    async function ensureConfigLoaded(force = false) {
+        if (configLoaded && !force) return;
+        const response = await fetch('/api/config', {
+            headers: {
+                Accept: 'application/json'
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`Konfiguration konnte nicht geladen werden (${response.status})`);
+        }
+        applyConfig(await response.json());
+        configLoaded = true;
+    }
+
+    async function persistConfig() {
+        const response = await fetch('/api/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json'
+            },
+            body: JSON.stringify(buildConfigPayload())
+        });
+
+        if (!response.ok) {
+            const errorPayload = await response.json().catch(() => null);
+            throw new Error(errorPayload?.message || `Konfiguration konnte nicht gespeichert werden (${response.status})`);
+        }
+
+        applyConfig(await response.json());
+    }
+
+    function getAliasForSku(sku) {
+        const normalizedSku = normalizeSku(sku);
+        return String(licenseAliases[normalizedSku] || '').trim();
+    }
+
+    function getDisplayName(license) {
+        const alias = getAliasForSku(license?.sku);
+        if (alias) return alias;
+        return String(license?.name || license?.sku || 'Unbekannt').trim();
+    }
+
+    function mergeLicenseCatalog(graphLicenses = []) {
+        const graphItems = graphLicenses.map(license => ({
+            ...license,
+            originalName: license.originalName || license.name || license.sku,
+            name: getDisplayName(license),
+            source: license.source || 'graph'
+        }));
+        const customItems = customLicensePackages.map(license => ({
+            ...license,
+            originalName: license.originalName || license.name || license.sku,
+            name: getDisplayName(license),
+            source: 'manual'
+        }));
+        return [...graphItems, ...customItems];
+    }
+
+    function formatSnapshotTimestamp(value) {
+        if (!value) return 'Noch nicht geladen';
+        return new Intl.DateTimeFormat('de-DE', {
+            dateStyle: 'short',
+            timeStyle: 'medium'
+        }).format(value);
+    }
+
+    function updateSnapshotTimestamp() {
+        const element = document.getElementById('snapshot-timestamp');
+        if (!element) return;
+        element.textContent = formatSnapshotTimestamp(lastSnapshotAt);
+    }
+
+    async function setLicenseAliasById(licenseId, aliasValue) {
+        const license = currentLicenses.find(item => item.id === Number(licenseId));
+        if (!license) {
+            showToast('Lizenz nicht gefunden', 'error');
+            return;
+        }
+
+        const sku = normalizeSku(license.sku);
+        const alias = String(aliasValue || '').trim();
+
+        if (alias) {
+            licenseAliases[sku] = alias;
+        } else {
+            delete licenseAliases[sku];
+        }
+
+        await persistConfig();
+        currentLicenses = currentLicenses.map(item => ({ ...item, name: getDisplayName(item) }));
+        renderDashboard();
+        renderSettings();
+    }
+
+    async function promptLicenseAlias(licenseId) {
+        const license = currentLicenses.find(item => item.id === Number(licenseId));
+        if (!license) {
+            showToast('Lizenz nicht gefunden', 'error');
+            return;
+        }
+
+        currentRenameLicenseId = license.id;
+        document.getElementById('rename-license-sku').textContent = `SKU: ${license.sku}`;
+        document.getElementById('rename-license-input').value = getAliasForSku(license.sku) || '';
+        document.getElementById('rename-license-modal').classList.remove('hidden');
+        document.getElementById('rename-license-modal').classList.add('flex');
+        document.getElementById('rename-license-input').focus();
+    }
+
+    function closeRenameLicenseModal(event) {
+        if (event && event.target !== document.getElementById('rename-license-modal')) return;
+        currentRenameLicenseId = null;
+        document.getElementById('rename-license-modal').classList.add('hidden');
+        document.getElementById('rename-license-modal').classList.remove('flex');
+    }
+
+    async function saveRenameLicenseModal() {
+        if (!currentRenameLicenseId) return;
+        const input = document.getElementById('rename-license-input');
+        try {
+            await setLicenseAliasById(currentRenameLicenseId, input.value);
+            closeRenameLicenseModal();
+            showToast(input.value.trim() ? 'Lizenzname gespeichert' : 'Lizenzname zurückgesetzt', 'success');
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
     async function fetchLicenses() {
         showToast('Lade Lizenzen...', 'info');
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return getLicenseCatalog();
+        try {
+            const response = await fetch('/api/licenses', {
+                headers: {
+                    Accept: 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorPayload = await response.json().catch(() => null);
+                const errorMessage = errorPayload?.message || `Lizenzabruf fehlgeschlagen (${response.status})`;
+                throw new Error(errorMessage);
+            }
+
+            const payload = await response.json();
+            if (!Array.isArray(payload.licenses)) {
+                throw new Error('Ungueltiges Antwortformat fuer Lizenzdaten');
+            }
+
+            lastSnapshotAt = new Date();
+            return mergeLicenseCatalog(payload.licenses);
+        } catch (error) {
+            console.warn('Live-Lizenzabruf nicht verfuegbar.', error);
+            showToast(`Live-Lizenzabruf nicht verfuegbar: ${error.message}`, 'warn');
+            lastSnapshotAt = new Date();
+            return mergeLicenseCatalog([]);
+        }
     }
 
     async function fetchHistory() {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        return [...currentHistory];
-    }
-
-    async function fetchLogs() {
-        await new Promise(resolve => setTimeout(resolve, 150));
-        return [...mockLogs];
+        return [];
     }
 
     async function saveThresholds(newThresholds) {
-        await new Promise(resolve => setTimeout(resolve, 200));
         thresholds = newThresholds;
-        persistThresholds();
+        await persistConfig();
         showToast('Schwellwerte gespeichert', 'success');
     }
 
     function getLicenseCatalog() {
-        return [...BASE_LICENSES, ...customLicensePackages].map(lic => ({ ...lic }));
-    }
-
-    function loadCustomPackages() {
-        try {
-            const stored = JSON.parse(localStorage.getItem(CUSTOM_PACKAGES_STORAGE_KEY) || '[]');
-            if (!Array.isArray(stored)) return [];
-            return stored.map(normalizeStoredCustomPackage).filter(Boolean);
-        } catch (error) {
-            console.warn('Eigene Pakete konnten nicht geladen werden.', error);
-            return [];
-        }
+        return mergeLicenseCatalog([]);
     }
 
     function normalizeStoredCustomPackage(pkg) {
@@ -173,16 +264,7 @@
         };
     }
 
-    function persistCustomPackages() {
-        localStorage.setItem(CUSTOM_PACKAGES_STORAGE_KEY, JSON.stringify(customLicensePackages));
-    }
-
-    function persistThresholds() {
-        localStorage.setItem('licenseThresholds', JSON.stringify(thresholds));
-    }
-
     async function createCustomPackage(packageData) {
-        await new Promise(resolve => setTimeout(resolve, 150));
         const packageId = Date.now();
         const newPackage = {
             id: packageId,
@@ -199,19 +281,17 @@
 
         customLicensePackages = [...customLicensePackages, newPackage];
         thresholds[packageId] = packageData.threshold;
-        persistCustomPackages();
-        persistThresholds();
+        await persistConfig();
         currentLicenses = getLicenseCatalog();
         return newPackage;
     }
 
     async function removeCustomPackage(packageId) {
-        await new Promise(resolve => setTimeout(resolve, 150));
         const numericId = Number(packageId);
         customLicensePackages = customLicensePackages.filter(pkg => pkg.id !== numericId);
         delete thresholds[numericId];
-        persistCustomPackages();
-        persistThresholds();
+        delete licenseAliases[normalizeSku((currentLicenses.find(pkg => pkg.id === numericId) || {}).sku || '')];
+        await persistConfig();
         currentLicenses = getLicenseCatalog();
     }
 
@@ -406,7 +486,7 @@
         if (high.length > 0) {
             banner.classList.remove('hidden');
             document.getElementById('critical-banner-text').textContent =
-                `⚠️ ${high.length} Lizenzpool(s) über dem Schwellwert – Zuweisungen könnten blockiert werden.`;
+                `⚠️ ${high.length} Lizenzpool(s) liegen über dem konfigurierten Schwellwert.`;
         } else {
             banner.classList.add('hidden');
         }
@@ -415,54 +495,10 @@
     function updateKPIs() {
         const total = currentLicenses.length;
         const critical = currentLicenses.filter(l => getUsagePercent(l) >= (thresholds[l.id] || DEFAULT_THRESHOLD)).length;
-        const usageSummary = getLicenseUsageSummary();
         document.getElementById('kpi-total').textContent = total;
         document.getElementById('kpi-critical').textContent = critical;
-        const freeKpi = document.getElementById('kpi-free');
-        if (freeKpi) freeKpi.textContent = usageSummary.free;
         document.getElementById('critical-indicator').style.display = critical > 0 ? 'inline-block' : 'none';
         document.getElementById('threshold-display').textContent = Object.values(thresholds)[0] || DEFAULT_THRESHOLD;
-    }
-
-    function updateApproverStatusUI() {
-        const dot = document.getElementById('approver-dot');
-        const text = document.getElementById('approver-status-text');
-        const toggleBtn = document.getElementById('toggle-approver-btn');
-        const toggleText = document.getElementById('toggle-approver-text');
-        const globalStatus = document.getElementById('approver-global-status');
-        if (autoApproverActive) {
-            dot.className = 'w-3 h-3 rounded-full bg-emerald-500';
-            text.textContent = 'Aktiv';
-            text.className = 'font-semibold text-emerald-700';
-            if (toggleBtn) {
-                toggleBtn.className = 'btn-danger px-4 py-2 rounded font-medium text-sm';
-                toggleText.textContent = 'Auto-Approver deaktivieren';
-            }
-            if (globalStatus) globalStatus.innerHTML = 'Derzeit: <strong>Aktiv</strong>';
-        } else {
-            dot.className = 'w-3 h-3 rounded-full bg-red-500';
-            text.textContent = 'Inaktiv';
-            text.className = 'font-semibold text-red-700';
-            if (toggleBtn) {
-                toggleBtn.className = 'bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-medium text-sm';
-                toggleText.textContent = 'Auto-Approver aktivieren';
-            }
-            if (globalStatus) globalStatus.innerHTML = 'Derzeit: <strong>Inaktiv</strong>';
-        }
-    }
-
-    function updateLogicAppStatusUI() {
-        const dot = document.getElementById('logicapp-dot');
-        const text = document.getElementById('logicapp-status-text');
-        if (logicAppOnline) {
-            dot.className = 'w-3 h-3 rounded-full bg-emerald-500 animate-pulse';
-            text.textContent = 'Online';
-            text.className = 'font-semibold text-emerald-700';
-        } else {
-            dot.className = 'w-3 h-3 rounded-full bg-red-500';
-            text.textContent = 'Offline';
-            text.className = 'font-semibold text-red-700';
-        }
     }
 
     // ---------------------------------------------------------------
@@ -483,7 +519,6 @@
         sortedLicenses.forEach(lic => {
             const threshold = thresholds[lic.id] || DEFAULT_THRESHOLD;
             const pct = getUsagePercent(lic);
-            const free = getFreeCount(lic);
             const safeName = escapeHtml(lic.name);
             const safeSku = escapeHtml(lic.sku);
             const trendHtml = getTrendBadgeHtml(lic);
@@ -510,6 +545,7 @@
                                 ${trendHtml}
                                 <span class="text-xs text-gray-500">Trend: ${escapeHtml(buildTrendLabel(lic))}</span>
                             </div>
+                            <button class="mt-3 text-xs text-[#0067B8] hover:underline" onclick="event.stopPropagation(); promptLicenseAlias(${lic.id})">Name ändern</button>
                         </div>
                         <i data-lucide="chevron-right" class="w-5 h-5 text-gray-300 group-hover:text-[#A6111E] transition-colors"></i>
                     </div>
@@ -527,10 +563,6 @@
                                 <span class="text-gray-500">Verbraucht</span>
                                 <span class="font-medium">${lic.used} / ${lic.total}</span>
                             </div>
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-500">Frei</span>
-                                <span class="font-medium ${free === 0 ? 'text-red-600' : 'text-emerald-600'}">${free}</span>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -540,14 +572,13 @@
         lucide.createIcons();
         updateKPIs();
         updateCriticalBanner();
-        updateApproverStatusUI();
-        updateLogicAppStatusUI();
+        updateSnapshotTimestamp();
     }
 
     async function refreshDashboard() {
         try {
+            await ensureConfigLoaded();
             currentLicenses = await fetchLicenses();
-            await checkLogicAppHealth();
             renderDashboard();
             showToast('Daten aktualisiert', 'success');
         } catch (e) {
@@ -565,19 +596,12 @@
         }
     }
 
-    async function checkLogicAppHealth() {
-        await new Promise(resolve => setTimeout(resolve, 400));
-        logicAppOnline = Math.random() > 0.1;
-        updateLogicAppStatusUI();
-    }
-
     // ---------------------------------------------------------------
     // LIZENZ-DETAIL MODAL (30-Tage-Aktivitätsgrafik)
     // ---------------------------------------------------------------
     function openLicenseDetail(id) {
         const lic = currentLicenses.find(l => l.id === id);
         if (!lic) return;
-        const free = getFreeCount(lic);
         const safeName = escapeHtml(lic.name);
         const safeSku = escapeHtml(lic.sku);
         const sourceLabel = lic.source === 'manual' ? 'Manuell gepflegt' : 'Microsoft 365';
@@ -591,6 +615,7 @@
             <div class="border-b border-gray-200 pb-4 mb-4">
                 <h3 class="text-xl font-bold mb-1">${safeName}</h3>
                 <p class="text-sm text-gray-500">${safeSku} – ${sourceLabel} – Gesamtlizenzen: ${lic.total}</p>
+                <button class="mt-3 text-sm text-[#0067B8] hover:underline" onclick="promptLicenseAlias(${lic.id})">Namen dieser Lizenz ändern</button>
             </div>
             <div class="grid grid-cols-2 gap-4 mb-6">
                 <div class="bg-gray-50 p-3 rounded">
@@ -598,8 +623,8 @@
                     <p class="text-2xl font-bold">${lic.used}</p>
                 </div>
                 <div class="bg-gray-50 p-3 rounded">
-                    <p class="text-xs text-gray-500">Verfügbar</p>
-                    <p class="text-2xl font-bold ${free===0 ? 'text-red-600' : 'text-emerald-600'}">${free}</p>
+                    <p class="text-xs text-gray-500">Gesamt</p>
+                    <p class="text-2xl font-bold">${lic.total}</p>
                 </div>
             </div>
             <h4 class="font-semibold text-sm text-gray-700 mb-2">Buchungsaktivitäten (letzte 30 Tage)</h4>
@@ -826,11 +851,12 @@
         emptyState.classList.add('hidden');
         dataArray.forEach(entry => {
             const isApproved = entry.result === 'approved';
+            const displayPackage = getAliasForSku(entry.sku) || entry.package;
             container.insertAdjacentHTML('beforeend', `
                 <tr class="hover:bg-gray-50 transition-colors">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${entry.time}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700">${escapeHtml(entry.user)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${escapeHtml(entry.package)} <span class="text-xs text-gray-400 font-mono">(${escapeHtml(entry.sku)})</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${escapeHtml(displayPackage)} <span class="text-xs text-gray-400 font-mono">(${escapeHtml(entry.sku)})</span></td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                             isApproved ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-red-100 text-red-800 border-red-200'
@@ -874,22 +900,27 @@
             return;
         }
 
+        const mappedData = data.map(entry => ({
+            ...entry,
+            package: getAliasForSku(entry.sku) || entry.package
+        }));
+
         let content;
         let filename;
         let mimeType;
 
         if (format === 'csv') {
             const rows = [['Zeitpunkt', 'Nutzer', 'Paket', 'Entscheidung', 'Grund', 'Request-ID']];
-            data.forEach(entry => rows.push([entry.time, entry.user, entry.package, entry.result, entry.reason, entry.requestId]));
+            mappedData.forEach(entry => rows.push([entry.time, entry.user, entry.package, entry.result, entry.reason, entry.requestId]));
             content = rows.map(row => row.join(';')).join('\n');
             filename = 'history.csv';
             mimeType = 'text/csv';
         } else if (format === 'json') {
-            content = JSON.stringify(data, null, 2);
+            content = JSON.stringify(mappedData, null, 2);
             filename = 'history.json';
             mimeType = 'application/json';
         } else if (format === 'txt') {
-            content = data.map(entry =>
+            content = mappedData.map(entry =>
                 `[${entry.time}] ${entry.user} - ${entry.package} (${entry.sku}): ${entry.result.toUpperCase()} - ${entry.reason} (${entry.requestId})`
             ).join('\n');
             filename = 'history.txt';
@@ -898,84 +929,6 @@
 
         downloadBlob(content, filename, mimeType);
     }
-
-    // ---------------------------------------------------------------
-    // LOGS TAB
-    // ---------------------------------------------------------------
-    async function renderLogs() {
-        const container = document.getElementById('logs-container');
-        container.innerHTML = '';
-        try {
-            currentLogs = await fetchLogs();
-            applyLogFilter();
-        } catch (e) {
-            showToast('Fehler beim Laden der Logs', 'error');
-        }
-    }
-
-    function displayLogs(logArray) {
-        const container = document.getElementById('logs-container');
-        container.innerHTML = '';
-        const emptyLogs = document.getElementById('empty-logs');
-        if (logArray.length === 0) {
-            emptyLogs.classList.remove('hidden');
-        } else {
-            emptyLogs.classList.add('hidden');
-            logArray.forEach(log => {
-                let colorClass = 'text-blue-400';
-                if (log.level === 'SUCCESS') colorClass = 'text-emerald-400';
-                else if (log.level === 'WARN') colorClass = 'text-amber-400';
-                else if (log.level === 'ERROR') colorClass = 'text-red-400 font-semibold';
-                container.insertAdjacentHTML('beforeend', `
-                    <div class="terminal-line flex gap-4 border-b border-gray-800 pb-1 text-xs">
-                        <span class="text-gray-500 shrink-0 w-14">[${log.time}]</span>
-                        <span class="${colorClass} w-16 shrink-0">[${log.level}]</span>
-                        <span class="text-gray-300">${log.msg}</span>
-                    </div>
-                `);
-            });
-        }
-        document.getElementById('log-error-count').textContent = logArray.filter(l => l.level === 'ERROR').length;
-        if (!logPaused) {
-            container.scrollTop = container.scrollHeight;
-        }
-    }
-
-    function applyLogFilter() {
-        const filterText = document.getElementById('log-filter').value.toLowerCase();
-        const filtered = currentLogs.filter(log =>
-            log.msg.toLowerCase().includes(filterText) || log.level.toLowerCase().includes(filterText)
-        );
-        displayLogs(filtered);
-    }
-
-    function clearLogs() {
-        currentLogs = [];
-        displayLogs([]);
-        showToast('Logs gelöscht', 'success');
-    }
-
-    function toggleLogPause() {
-        logPaused = !logPaused;
-        const icon = document.getElementById('log-pause-icon');
-        const label = document.getElementById('log-pause-label');
-        if (logPaused) {
-            label.textContent = 'Live';
-            icon.setAttribute('data-lucide', 'play');
-        } else {
-            label.textContent = 'Pause';
-            icon.setAttribute('data-lucide', 'pause');
-        }
-        lucide.createIcons();
-        showToast(logPaused ? 'Log-Live pausiert' : 'Log-Live fortgesetzt', 'info');
-    }
-
-    function exportLogs() {
-        const text = currentLogs.map(l => `[${l.time}] [${l.level}] ${l.msg}`).join('\n');
-        downloadBlob(text, 'logs.txt', 'text/plain');
-    }
-
-    document.getElementById('log-filter').addEventListener('input', applyLogFilter);
 
     // ---------------------------------------------------------------
     // SETTINGS TAB
@@ -996,8 +949,6 @@
 
         empty.classList.add('hidden');
         customLicensePackages.forEach(pkg => {
-            const free = getFreeCount(pkg);
-            const pct = Math.round(getUsagePercent(pkg));
             const safeName = escapeHtml(pkg.name);
             const safeSku = escapeHtml(pkg.sku);
             const statusHtml = pkg.blocked
@@ -1010,7 +961,7 @@
                         ${safeName}
                         <span class="text-xs text-gray-400 font-mono">${safeSku}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-600">${pkg.used} / ${pkg.total} (${free} frei, ${pct}%)</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${pkg.used} / ${pkg.total}</td>
                     <td class="px-4 py-3">${statusHtml}</td>
                     <td class="px-4 py-3">
                         <div class="flex flex-wrap items-center gap-3">
@@ -1078,7 +1029,6 @@
     }
 
     async function updateCustomPackage(packageId, packageData) {
-        await new Promise(resolve => setTimeout(resolve, 150));
         const numericId = Number(packageId);
         customLicensePackages = customLicensePackages.map(pkg => {
             if (pkg.id !== numericId) return pkg;
@@ -1093,8 +1043,7 @@
             };
         });
         thresholds[numericId] = packageData.threshold;
-        persistCustomPackages();
-        persistThresholds();
+        await persistConfig();
         currentLicenses = getLicenseCatalog();
     }
 
@@ -1120,12 +1069,16 @@
             const currentThreshold = thresholds[lic.id] || DEFAULT_THRESHOLD;
             const safeName = escapeHtml(lic.name);
             const safeSku = escapeHtml(lic.sku);
+            const aliasValue = escapeHtml(getAliasForSku(lic.sku));
             const sourceHtml = lic.source === 'manual'
                 ? '<span class="ml-2 text-xs text-blue-600">Manuell</span>'
                 : '';
             tbody.insertAdjacentHTML('beforeend', `
                 <tr>
                     <td class="px-4 py-3 text-sm text-gray-700">${safeName} <span class="text-xs text-gray-400 font-mono">${safeSku}</span>${sourceHtml}</td>
+                    <td class="px-4 py-3">
+                        <input type="text" id="alias-${lic.id}" value="${aliasValue}" placeholder="Optionaler Anzeigename" class="w-full min-w-52 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:border-[#A6111E]">
+                    </td>
                     <td class="px-4 py-3">
                         <input type="number" id="threshold-${lic.id}" value="${currentThreshold}" min="1" max="100" class="w-20 px-2 py-1 border border-gray-300 rounded text-sm">
                     </td>
@@ -1147,34 +1100,32 @@
             document.getElementById('custom-package-cancel').classList.add('hidden');
         }
         document.getElementById('save-thresholds-btn').onclick = saveSettingsThresholds;
-        updateApproverStatusUI();
-        document.getElementById('toggle-approver-btn').onclick = toggleAutoApprover;
     }
 
     async function saveSettingsThresholds() {
         const newThresholds = {};
+        const newAliases = {};
         currentLicenses.forEach(lic => {
             const input = document.getElementById(`threshold-${lic.id}`);
             if (input) newThresholds[lic.id] = parseThreshold(input.value);
+
+            const aliasInput = document.getElementById(`alias-${lic.id}`);
+            if (aliasInput) {
+                const alias = aliasInput.value.trim();
+                if (alias) newAliases[normalizeSku(lic.sku)] = alias;
+            }
         });
+        licenseAliases = newAliases;
         await saveThresholds(newThresholds);
+        currentLicenses = currentLicenses.map(lic => ({ ...lic, name: getDisplayName(lic) }));
         document.getElementById('settings-save-status').classList.remove('hidden');
         setTimeout(() => document.getElementById('settings-save-status').classList.add('hidden'), 2000);
         renderDashboard();
+        renderSettings();
     }
 
     function resetThreshold(licId) {
         document.getElementById(`threshold-${licId}`).value = DEFAULT_THRESHOLD;
-    }
-
-    function toggleAutoApprover() {
-        autoApproverActive = !autoApproverActive;
-        localStorage.setItem('autoApproverActive', autoApproverActive.toString());
-        updateApproverStatusUI();
-        // Dashboard-KPI ebenfalls aktualisieren
-        document.getElementById('approver-dot').className = autoApproverActive ? 'w-3 h-3 rounded-full bg-emerald-500' : 'w-3 h-3 rounded-full bg-red-500';
-        document.getElementById('approver-status-text').textContent = autoApproverActive ? 'Aktiv' : 'Inaktiv';
-        showToast(autoApproverActive ? 'Auto-Approver aktiviert' : 'Auto-Approver deaktiviert', autoApproverActive ? 'success' : 'error');
     }
 
     // ---------------------------------------------------------------
@@ -1192,7 +1143,6 @@
         activeBtn.classList.add('border-[#A6111E]', 'text-[#A6111E]');
 
         if (tabId === 'history') renderHistory();
-        else if (tabId === 'logs') renderLogs();
         else if (tabId === 'settings') renderSettings();
     }
 
@@ -1217,12 +1167,18 @@
         const btn = document.getElementById('login-btn');
         btn.textContent = 'Bitte warten...';
         btn.disabled = true;
-        setTimeout(() => {
+        setTimeout(async () => {
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('app-view').classList.remove('hidden');
             btn.textContent = 'Weiter';
             btn.disabled = false;
-            refreshDashboard();
+            try {
+                await ensureConfigLoaded(true);
+                currentHistory = await fetchHistory();
+                await refreshDashboard();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
         }, 700);
     });
 
@@ -1235,5 +1191,4 @@
     // INIT
     // ---------------------------------------------------------------
     lucide.createIcons();
-    updateApproverStatusUI();
-    updateLogicAppStatusUI();
+    updateSnapshotTimestamp();
