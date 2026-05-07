@@ -2,9 +2,9 @@
 
 ## Stand
 
-Datum: 2026-05-06
+Datum: 2026-05-07
 
-Der Single-File-Prototyp wurde als Grundlage uebernommen und in eine erste Azure-Static-Web-App-Struktur ueberfuehrt. Die App entwickelt sich nun vom reinen Monitor in Richtung Lizenzmanagement.
+Der Single-File-Prototyp wurde als Grundlage uebernommen und in eine erste Azure-Static-Web-App-Struktur ueberfuehrt. Die App nutzt jetzt eine kleine lokale API fuer Konfiguration und den read-only Abruf von Microsoft-365-Lizenzdaten ueber Microsoft Graph.
 
 ## Erledigt
 
@@ -25,41 +25,45 @@ Der Single-File-Prototyp wurde als Grundlage uebernommen und in eine erste Azure
 - `docs/PersistenceStrategy.md` mit Entscheidung, Datenmodell, API-Zielbild und Migrationspfad ergaenzt.
 - Einstellungen um Pflege eigener Pakete erweitert.
 - Eigene Pakete koennen mit Name, SKU, Gesamtbestand, Verbrauch, Warnschwellwert und Blockierungsstatus hinzugefuegt und bearbeitet werden.
-- Eigene Pakete werden lokal im Key `licenseMonitor.customPackages.v1` gespeichert und im Dashboard sowie in den Schwellwerten angezeigt.
-- Eigene Pakete koennen wieder geloescht werden; zugehoerige Schwellwerte werden dabei entfernt.
-- Dashboard zeigt Trends, freie Kapazitaet und sortiert nach Auslastung.
-- Zuweisungshistorie bietet Suche, Datumsspanne, Statusfilter und Pagination.
+- Lokaler Konfigurationsadapter von `localStorage` auf `data/local-config.json` umgestellt.
+- `scripts/static-server.js` bietet jetzt `GET/POST /api/config` fuer Aliasnamen, eigene Pakete und Schwellwerte.
+- `scripts/static-server.js` bietet `GET /api/licenses` fuer read-only Graph-Abruf auf `subscribedSkus`.
+- `.env` wird beim lokalen Serverstart eingelesen; benoetigt werden `M365_TENANT_ID`, `M365_CLIENT_ID` und `M365_CLIENT_SECRET_VALUE`.
+- `env.info.md` dokumentiert die benoetigten `.env`-Werte, Application Permissions und den verwendeten Entra-Client-Credentials-Flow.
+- Eigene Pakete koennen wieder geloescht werden; zugehoerige Schwellwerte und Aliaszuordnungen werden dabei entfernt.
+- Dashboard zeigt Trends, Snapshot-Zeitstempel und sortiert nach Auslastung.
+- Lizenzanzeigenamen koennen lokal per Alias gepflegt werden.
+- Zuweisungshistorie bietet Suche, Datumsspanne, Statusfilter, Pagination und Export; Paketnamen beruecksichtigen Aliasnamen.
 - Detailmodal zeigt zusatzlich die letzten Vorgaenge zum gewaehlten Lizenzpaket.
-- System-Logs scrollen bei Live-Betrieb automatisch nach unten.
 - Syntaxpruefung erfolgreich: `node --check src/app.js`.
 - Lokaler Static-Server laeuft fuer die aktuelle Pruefung unter `http://127.0.0.1:5173/`.
+- `data/local-config.json` als Default-Datei ins Repository aufgenommen.
 
 ## Bewusst unveraendert
 
 - Tailwind CSS wird weiterhin per CDN geladen.
 - Lucide Icons werden weiterhin per CDN geladen.
 - Chart.js wird weiterhin per CDN geladen.
-- Alle Datenquellen sind weiterhin Mock-Daten in `src/app.js`.
-- Login und Backend-Aufrufe sind weiterhin simuliert.
-- Eigene Pakete sind aktuell nur lokal im jeweiligen Browser gespeichert.
+- Login bleibt weiterhin simuliert.
+- Historie bleibt derzeit ohne echte Backend-Datenquelle.
 - Es gibt noch keine Azure Function und noch keine Azure-Storage-Anbindung.
+- Die lokale API schreibt nur in die Arbeitskopie und ist nicht fuer Mehrbenutzerbetrieb gedacht.
 
 ## Naechste Schritte
 
 - App im Browser pruefen.
-- API-Vertrag um Update/Delete fuer eigene Pakete und Settings-Endpunkte finalisieren.
-- Azure-Functions-API fuer Paket-CRUD und Settings anlegen.
-- Azure Storage Tabelle oder Blob fuer eigene Pakete und Settings provisionieren.
-- Git-Repository initialisieren oder Remote verbinden.
+- API-Vertrag fuer Azure Functions aus dem lokalen `/api/config`-Modell ableiten.
+- Azure-Functions-API fuer Konfiguration und Lizenzabruf anlegen.
+- Azure Storage Tabelle oder Blob fuer eigene Pakete, Aliasnamen und Schwellwerte provisionieren.
 - Azure Static Web App Deployment-Workflow vorbereiten.
-- Mock-Funktionen durch echte API-Endpunkte ersetzbar machen.
-- Backend/API-Vertrag konkretisieren.
+- Historie mit echter Datenquelle oder bewusstem Platzhalterkonzept hinterlegen.
+- Fehlerbilder fuer Graph-Authentifizierung und Berechtigungen dokumentieren.
 
 ## Offene Punkte
 
-- Gewuenschter GitHub-Repository-Name.
 - Azure Static Web App Name und Resource Group.
 - Authentifizierungsvariante.
-- Quelle der echten Lizenzdaten.
+- Finale Quelle der Historie.
 - Exakte Azure-Storage-Variante: Table Storage oder Blob Storage.
-- Zielsystem fuer produktive Persistenz von eigenen Paketen, Schwellwerten und Auto-Approver-Status.
+- Zielsystem fuer produktive Persistenz von eigenen Paketen, Aliasnamen und Schwellwerten.
+- Welche Graph-Application-Permissions freigegeben werden.

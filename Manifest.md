@@ -2,16 +2,16 @@
 
 ## Ziel
 
-Aus dem bestehenden Single-File-Prototyp `MVPindex.html` ist eine lauffaehige Azure Static Web App fuer Lizenzmanagement und Monitoring entstanden. Das Frontend und alle vorhandenen MVP-Funktionen werden erhalten und schrittweise in eine produktionsfaehige Struktur ueberfuehrt.
+Aus dem bestehenden Single-File-Prototyp `MVPindex.html` ist eine lauffaehige Azure Static Web App fuer Lizenzmanagement und Monitoring entstanden. Das Frontend wird schrittweise in eine produktionsfaehige Struktur ueberfuehrt und bereits mit einer kleinen lokalen API fuer Konfiguration und Live-Lizenzabruf verbunden.
 
 ## Leitplanken
 
-- Das bestehende UI und Verhalten bleiben erhalten.
-- Keine Funktion aus dem MVP wird entfernt.
+- Das bestehende UI wird gezielt weiterentwickelt und wo noetig vereinfacht.
 - `MVPindex.html` bleibt vorerst als Originalreferenz im Repository.
-- Die App bleibt zunaechst statisch lauffaehig und nutzt weiterhin Mock-Daten.
-- Backend-Anbindungen werden spaeter hinter die bestehenden `fetchXxx()`-Funktionen gelegt.
-- Eigene Pakete werden im Frontend bereits ueber einen lokalen Persistenzadapter gepflegt; produktiv wird dieser Adapter durch Azure Functions mit Azure Storage ersetzt.
+- Die App bleibt lokal ohne Build-Schritt lauffaehig.
+- Backend-Anbindungen liegen hinter den bestehenden `fetchXxx()`-Funktionen und koennen lokal ueber den Static-Server getestet werden.
+- Eigene Pakete, Aliasnamen und Schwellwerte werden aktuell in `data/local-config.json` ueber `/api/config` gepflegt; produktiv wird dieser Adapter spaeter durch Azure Functions mit Azure Storage ersetzt.
+- Microsoft-365-Lizenzdaten werden lokal bereits read-only ueber Microsoft Graph abgefragt, sobald gueltige `.env`-Werte vorhanden sind.
 - Die Struktur soll direkt nach GitHub gespiegelt und in Azure Static Web Apps gehostet werden koennen.
 
 ## Aktuelle Dateistruktur
@@ -24,13 +24,16 @@ Aus dem bestehenden Single-File-Prototyp `MVPindex.html` ist eine lauffaehige Az
   Manifest.md                # Projektplan und Architekturleitplanken
   package.json               # Lokales Dev-Skript ohne Build-Abhaengigkeiten
   Status.md                  # Laufender Arbeitsstand
+  env.info.md                # Entra- und Graph-Voraussetzungen fuer den lokalen Lizenzabruf
   staticwebapp.config.json   # Azure Static Web Apps Konfiguration
   assets/
     .gitkeep                 # Platzhalter fuer spaetere statische Assets
+  data/
+    local-config.json        # Lokale Konfiguration fuer Aliasnamen, eigene Pakete und Schwellwerte
   docs/
     PersistenceStrategy.md   # Persistenzstrategie und Datenmodell fuer eigene Pakete
   scripts/
-    static-server.js         # Kleiner lokaler Static-Server
+    static-server.js         # Kleiner lokaler Static-Server mit /api/config und /api/licenses
   src/
     app.js                   # Ausgelagerte MVP-Logik
     styles.css               # Ausgelagerte MVP-Styles
@@ -40,15 +43,15 @@ Aus dem bestehenden Single-File-Prototyp `MVPindex.html` ist eine lauffaehige Az
 
 - Simulierter Admin-Login
 - Dashboard fuer Lizenzpools, nach Auslastung sortiert
-- KPI-Karten fuer Paketanzahl, kritische Pools, freie Plaetze, Logic-App-Status und Auto-Approver
+- KPI-Karten fuer Paketanzahl und kritische Pools
 - Kritisches Warnbanner
 - Lizenzkarten mit Auslastung, Trend, Schwellwerten und Blockierungsstatus
+- Snapshot-Zeitstempel fuer den letzten Datenabruf
 - Detailmodal inklusive 30-Tage-Aktivitaetsgrafik und letzter Vorgangsuebersicht
 - Zuweisungshistorie mit Suche, Datumsfilter, Statusfilter, Sortierung, Pagination und Export
-- System-Logs mit Filter, Pause, Auto-Scroll, Clear und Export
-- Einstellungen fuer Schwellwerte
+- Einstellungen fuer Aliasnamen und Schwellwerte
 - Pflege eigener Lizenzpakete inklusive SKU, Bestand, Verbrauch, Warnschwellwert, Blockierungsstatus und Bearbeitung
-- Auto-Approver-Steuerung
+- Umbenennen von Lizenzanzeigenamen direkt aus Dashboard, Detailansicht und Einstellungen
 - Toast-Meldungen
 - Auto-Refresh
 
@@ -57,6 +60,8 @@ Aus dem bestehenden Single-File-Prototyp `MVPindex.html` ist eine lauffaehige Az
 ```bash
 npm run dev
 ```
+
+Fuer Live-Lizenzdaten muessen die Graph- und Entra-Voraussetzungen aus `env.info.md` erfuellt sein.
 
 Alternativ ohne npm:
 
@@ -69,24 +74,22 @@ node scripts/static-server.js
 ```text
 Browser
   -> Azure Static Web Apps
-       -> index.html, src/app.js, src/styles.css, assets/*
-       -> Azure Functions API
-            GET  /api/licenses
-            POST /api/packages
-            DELETE /api/packages/{id}
-            GET  /api/history
-            GET  /api/logs
-            GET  /api/health
-            POST /api/settings/thresholds
-            POST /api/approver/state
+    -> index.html, src/app.js, src/styles.css, assets/*
+    -> Azure Functions API
+      GET  /api/licenses
+      GET  /api/config
+      POST /api/config
        -> Azure Storage
-            Table Storage oder Blob Storage fuer eigene Pakete und kleine Settings
+      Table Storage oder Blob Storage fuer eigene Pakete und kleine Settings
+    -> Microsoft Graph
+      subscribedSkus fuer read-only Lizenzdaten
 ```
 
 ## Persistenzstrategie
 
-- Kurzfristig: `localStorage` als Entwicklungsadapter fuer eigene Pakete, Schwellwerte und Auto-Approver-Status.
+- Kurzfristig: `data/local-config.json` als lokaler Entwicklungsadapter fuer eigene Pakete, Aliasnamen und Schwellwerte.
 - Zielbetrieb: Azure Functions kapseln alle Schreibzugriffe und speichern die wenigen Konfigurationsdaten in Azure Storage.
+- Live-Lizenzdaten bleiben read-only und kommen aus Microsoft Graph.
 - Keine produktiven Schreibzugriffe in Deployment-Dateien der Static Web App.
 - Keine eigene Docker-Datenbank fuer diese Datenmenge; Wartung, Backup und Persistenz waeren unverhaeltnismaessig.
 - Azure SQL bleibt eine spaetere Option, falls Historie, Audit, Rollen oder Abfragen relational deutlich komplexer werden.
@@ -97,8 +100,8 @@ Browser
 2. MVP-Funktionalitaet unveraendert lokal pruefen.
 3. GitHub-Repository initialisieren oder bestehendes Repository anbinden.
 4. Azure Static Web App fuer statisches Hosting konfigurieren.
-5. API-Vertrag finalisieren und Mock-Funktionen auf echte Endpunkte vorbereiten.
-6. Azure Functions fuer Lizenzdaten, Historie, Logs, Health und Settings ergaenzen.
+5. Lokalen API-Vertrag fuer `GET/POST /api/config` und `GET /api/licenses` stabilisieren.
+6. Azure Functions fuer Lizenzdaten und lokale Konfiguration ergaenzen.
 7. Authentifizierung integrieren, voraussichtlich Microsoft Entra ID / Static Web Apps Auth.
-8. Persistenz fuer eigene Pakete, Schwellwerte und Auto-Approver-Status ueber Azure Storage einfuehren.
-9. Monitoring, Fehlerbehandlung und Deployment-Dokumentation ergaenzen.
+8. Persistenz fuer eigene Pakete, Aliasnamen und Schwellwerte ueber Azure Storage einfuehren.
+9. Historie, Monitoring, Fehlerbehandlung und Deployment-Dokumentation ergaenzen.
