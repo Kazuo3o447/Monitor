@@ -3,7 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { URLSearchParams } = require("node:url");
 
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "..", "..");
+const webRoot = path.join(root, "apps", "web");
 const port = Number(process.env.PORT || process.argv[2] || 5173);
 const host = process.env.HOST || "127.0.0.1";
 const localConfigPath = path.join(root, "data", "local-config.json");
@@ -275,9 +276,9 @@ async function fetchGraphLicenses() {
 function resolveRequestPath(requestUrl) {
   const pathname = decodeURIComponent((requestUrl || "/").split("?")[0]);
   const normalized = path.normalize(pathname).replace(/^([.][.][\\/])+/, "");
-  const requestedPath = path.resolve(root, normalized === path.sep ? "index.html" : `.${normalized}`);
+  const requestedPath = path.resolve(webRoot, normalized === path.sep ? "index.html" : `.${normalized}`);
 
-  if (requestedPath !== root && !requestedPath.startsWith(`${root}${path.sep}`)) {
+  if (requestedPath !== webRoot && !requestedPath.startsWith(`${webRoot}${path.sep}`)) {
     return null;
   }
 
@@ -345,7 +346,7 @@ const server = http.createServer(async (req, res) => {
 
   fs.stat(filePath, (statError, stat) => {
     if (statError || !stat.isFile()) {
-      filePath = path.join(root, "index.html");
+      filePath = path.join(webRoot, "index.html");
     }
 
     fs.readFile(filePath, (readError, data) => {

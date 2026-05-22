@@ -1,5 +1,13 @@
 # GEMA M365 Lizenz-Monitor - Status
 
+## Phase 0 - Foundation & Repo-Restruktur (laufend)
+
+- Monorepo-Struktur mit npm workspaces wird eingefuehrt (`apps/*`, `packages/*`).
+- Bestehendes Frontend wird unveraendert nach `apps/web` verschoben.
+- Bestehender lokaler Node-Server wird nach `apps/api` verschoben.
+- API-Vertrag bleibt in Phase 0 unveraendert (`GET /api/licenses`, `GET /api/config`, `POST /api/config`).
+- Architekturentscheidungen werden ab jetzt in `docs/adr/` als ADRs gepflegt.
+
 ## Stand
 
 Datum: 2026-05-07

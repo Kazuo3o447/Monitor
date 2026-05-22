@@ -178,3 +178,5 @@ Folgende Aussagen gelten in dieser Form nicht mehr als Projektbeschreibung:
 - dass der aktuelle Umfang noch dem frueheren MVP mit Logs- und Approver-Steuerung entspricht
 
 Dieses Manifest ist damit die massgebliche Beschreibung des aktuellen Projektzuschnitts.
+
+Hinweis ab Phase 0: Das Repository wird schrittweise zu einem erweiterten Lizenz-Management-System ausgebaut. Architekturentscheidungen werden dafuer fortan zentral in `docs/adr/` als ADRs nachgefuehrt.

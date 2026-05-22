@@ -2,8 +2,12 @@
   "name": "gema-m365-lizenz-monitor",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "node scripts/static-server.js"
+    "dev": "node apps/api/static-server.js"
   }
 }
 
